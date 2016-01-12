@@ -36,8 +36,7 @@ final class Subscription {
     public boolean equals(Object other) {
         if (other instanceof Subscription) {
             Subscription otherSubscription = (Subscription) other;
-            return subscriber == otherSubscription.subscriber
-                    && subscriberMethod.equals(otherSubscription.subscriberMethod);
+            return subscriber == otherSubscription.subscriber && subscriberMethod.equals(otherSubscription.subscriberMethod);
         } else {
             return false;
         }

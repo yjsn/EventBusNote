@@ -1,18 +1,3 @@
-/*
- * Copyright (C) 2012 Markus Junginger, greenrobot (http://greenrobot.de)
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package de.greenrobot.event;
 
 import android.os.Looper;
@@ -130,6 +115,7 @@ public class EventBus {
      * enums. For example, if a method is to be called in the UI/main thread by EventBus, it would be called
      * "onEventMainThread".
      */
+    //对订阅者的注册   使用默认的优先级别
     public void register(Object subscriber) {
         register(subscriber, false, 0);
     }
@@ -140,6 +126,7 @@ public class EventBus {
      * others with a lower priority. The default priority is 0. Note: the priority does *NOT* affect the order of
      * delivery among subscribers with different {@link ThreadMode}s!
      */
+    //对订阅者的注册   可以设置订阅者的优先级别
     public void register(Object subscriber, int priority) {
         register(subscriber, false, priority);
     }
@@ -160,6 +147,7 @@ public class EventBus {
         register(subscriber, true, priority);
     }
 
+    //真正进行订阅者注册的处理函数   参数一  订阅者    参数二  是否是sticky事件  参数三  优先级
     private synchronized void register(Object subscriber, boolean sticky, int priority) {
         List<SubscriberMethod> subscriberMethods = subscriberMethodFinder.findSubscriberMethods(subscriber.getClass());
         for (SubscriberMethod subscriberMethod : subscriberMethods) {
@@ -177,8 +165,7 @@ public class EventBus {
             subscriptionsByEventType.put(eventType, subscriptions);
         } else {
             if (subscriptions.contains(newSubscription)) {
-                throw new EventBusException("Subscriber " + subscriber.getClass() + " already registered to event "
-                        + eventType);
+                throw new EventBusException("Subscriber " + subscriber.getClass() + " already registered to event " + eventType);
             }
         }
 
@@ -296,8 +283,7 @@ public class EventBus {
     public void cancelEventDelivery(Object event) {
         PostingThreadState postingState = currentPostingThreadState.get();
         if (!postingState.isPosting) {
-            throw new EventBusException(
-                    "This method may only be called from inside event handling methods on the posting thread");
+            throw new EventBusException("This method may only be called from inside event handling methods on the posting thread");
         } else if (event == null) {
             throw new EventBusException("Event may not be null");
         } else if (postingState.event != event) {
@@ -406,8 +392,7 @@ public class EventBus {
             if (logNoSubscriberMessages) {
                 Log.d(TAG, "No subscribers registered for event " + eventClass);
             }
-            if (sendNoSubscriberEvent && eventClass != NoSubscriberEvent.class &&
-                    eventClass != SubscriberExceptionEvent.class) {
+            if (sendNoSubscriberEvent && eventClass != NoSubscriberEvent.class && eventClass != SubscriberExceptionEvent.class) {
                 post(new NoSubscriberEvent(this, event));
             }
         }
@@ -524,23 +509,19 @@ public class EventBus {
         if (event instanceof SubscriberExceptionEvent) {
             if (logSubscriberExceptions) {
                 // Don't send another SubscriberExceptionEvent to avoid infinite event recursion, just log
-                Log.e(TAG, "SubscriberExceptionEvent subscriber " + subscription.subscriber.getClass()
-                        + " threw an exception", cause);
+                Log.e(TAG, "SubscriberExceptionEvent subscriber " + subscription.subscriber.getClass() + " threw an exception", cause);
                 SubscriberExceptionEvent exEvent = (SubscriberExceptionEvent) event;
-                Log.e(TAG, "Initial event " + exEvent.causingEvent + " caused exception in "
-                        + exEvent.causingSubscriber, exEvent.throwable);
+                Log.e(TAG, "Initial event " + exEvent.causingEvent + " caused exception in " + exEvent.causingSubscriber, exEvent.throwable);
             }
         } else {
             if (throwSubscriberException) {
                 throw new EventBusException("Invoking subscriber failed", cause);
             }
             if (logSubscriberExceptions) {
-                Log.e(TAG, "Could not dispatch event: " + event.getClass() + " to subscribing class "
-                        + subscription.subscriber.getClass(), cause);
+                Log.e(TAG, "Could not dispatch event: " + event.getClass() + " to subscribing class " + subscription.subscriber.getClass(), cause);
             }
             if (sendSubscriberExceptionEvent) {
-                SubscriberExceptionEvent exEvent = new SubscriberExceptionEvent(this, cause, event,
-                        subscription.subscriber);
+                SubscriberExceptionEvent exEvent = new SubscriberExceptionEvent(this, cause, event, subscription.subscriber);
                 post(exEvent);
             }
         }
