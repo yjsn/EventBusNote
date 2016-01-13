@@ -27,14 +27,18 @@ class SubscriberMethodFinder {
     private static final int SYNTHETIC = 0x1000;
     //过滤方法是使用的修饰符
     private static final int MODIFIERS_IGNORE = Modifier.ABSTRACT | Modifier.STATIC | BRIDGE | SYNTHETIC;
-    //缓存集合,用于缓存订阅者与其对应的事件------>使用集合的目的是,对象在下一次订阅时不用进行注册事件的查找，提高运行的速率------->效率优化,空间换取时间----------------->效率提高点
+    //缓存集合,用于缓存订阅者与其对应的事件------>使用集合的目的是,对象在下一次订阅时不用进行注册事件的查找，提高运行的速率------->效率优化,空间换取时间----------------->效率提高点------>这个集合是属于类共享的
     private static final Map<Class<?>, List<SubscriberMethod>> methodCache = new HashMap<Class<?>, List<SubscriberMethod>>();
-
+    //集合对象,用于存储EventBus对象中需要排除的过滤类-------->这个集合是属于对象的------------>注意本集合并不是那么用的,它只是在出现检测订阅方法出现错误时才使用的
     private final Map<Class<?>, Class<?>> skipMethodVerificationForClasses;
 
+    //创建订阅方法过滤器对象的构造函数------>此处能够告诉过滤器对象对那些订阅对象的类不进行过滤处理
     SubscriberMethodFinder(List<Class<?>> skipMethodVerificationForClassesList) {
+    	//创建集合用于存储需要排除检测的类
         skipMethodVerificationForClasses = new ConcurrentHashMap<Class<?>, Class<?>>();
+        //判断当前EventBus对象中是否设置了排除检测的类
         if (skipMethodVerificationForClassesList != null) {
+        	//循环处理,将需要排除的类放置到集合中
             for (Class<?> clazz : skipMethodVerificationForClassesList) {
                 skipMethodVerificationForClasses.put(clazz, clazz);
             }
@@ -171,7 +175,7 @@ class SubscriberMethodFinder {
         	//
             threadMode = ThreadMode.Async;
         } else {
-        	//方法出现错误的处理
+        	//方法出现错误的处理----------->判断本方法是否在排除的处理类中---->没有时会抛出异常错误
             if (!skipMethodVerificationForClasses.containsKey(clazz)) {
                 throw new EventBusException("Illegal onEvent method, check for typos: " + method);
             } else {

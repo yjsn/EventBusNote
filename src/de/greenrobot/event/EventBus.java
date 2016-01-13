@@ -13,26 +13,18 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 
-/**
- * EventBus is a central publish/subscribe event system for Android. Events are posted ({@link #post(Object)}) to the
- * bus, which delivers it to subscribers that have a matching handler method for the event type. To receive events,
- * subscribers must register themselves to the bus using {@link #register(Object)}. Once registered,
- * subscribers receive events until {@link #unregister(Object)} is called. By convention, event handling methods must
- * be named "onEvent", be public, return nothing (void), and have exactly one parameter (the event).
- *
- * @author Markus Junginger, greenrobot
- */
 public class EventBus {
 
-    /** Log tag, apps may override it. */
     public static String TAG = "Event";
-
+    //框架内部默认的EventBus对象
     static volatile EventBus defaultInstance;
-
+    //框架内部默认使用的建造器对象
     private static final EventBusBuilder DEFAULT_BUILDER = new EventBusBuilder();
+    
     private static final Map<Class<?>, List<Class<?>>> eventTypesCache = new HashMap<Class<?>, List<Class<?>>>();
 
     private final Map<Class<?>, CopyOnWriteArrayList<Subscription>> subscriptionsByEventType;
+    //用于存储本EventBus对象中订阅的对象和对应的方法
     private final Map<Object, List<Class<?>>> typesBySubscriber;
     private final Map<Class<?>, Object> stickyEvents;
 
@@ -42,7 +34,6 @@ public class EventBus {
             return new PostingThreadState();
         }
     };
-
 
     private final HandlerPoster mainThreadPoster;
     private final BackgroundPoster backgroundPoster;
@@ -57,43 +48,34 @@ public class EventBus {
     private final boolean sendNoSubscriberEvent;
     private final boolean eventInheritance;
 
-    /** Convenience singleton for apps using a process-wide EventBus instance. */
+    //获取框架默认的EventBus对象------>内部使用默认的建造器对象来创建EventBus对象
     public static EventBus getDefault() {
         if (defaultInstance == null) {
             synchronized (EventBus.class) {
                 if (defaultInstance == null) {
+                	//创建默认EventBus对象
                     defaultInstance = new EventBus();
                 }
             }
         }
         return defaultInstance;
     }
-
-    public static EventBusBuilder builder() {
-        return new EventBusBuilder();
-    }
-
-    /** For unit test primarily. */
-    public static void clearCaches() {
-        SubscriberMethodFinder.clearCaches();
-        eventTypesCache.clear();
-    }
-
-    /**
-     * Creates a new EventBus instance; each instance is a separate scope in which events are delivered. To use a
-     * central bus, consider {@link #getDefault()}.
-     */
+    
+    //使用默认的建造器对象创建EventBus对象
     public EventBus() {
         this(DEFAULT_BUILDER);
     }
 
+    //根据给定的建造器来创建EventBus对象---------->创建EventBus对象最终都会走这个方法     主要是完成一些初始化处理
     EventBus(EventBusBuilder builder) {
         subscriptionsByEventType = new HashMap<Class<?>, CopyOnWriteArrayList<Subscription>>();
+        //初始化创建存储订阅对象的集合
         typesBySubscriber = new HashMap<Object, List<Class<?>>>();
         stickyEvents = new ConcurrentHashMap<Class<?>, Object>();
         mainThreadPoster = new HandlerPoster(this, Looper.getMainLooper(), 10);
         backgroundPoster = new BackgroundPoster(this);
         asyncPoster = new AsyncPoster(this);
+        //创建订阅对象中订阅方法的过滤器对象------------------------>每个EventBus对象都有自己的订阅过滤器对象
         subscriberMethodFinder = new SubscriberMethodFinder(builder.skipMethodVerificationForClasses);
         logSubscriberExceptions = builder.logSubscriberExceptions;
         logNoSubscriberMessages = builder.logNoSubscriberMessages;
@@ -104,6 +86,18 @@ public class EventBus {
         executorService = builder.executorService;
     }
 
+    //获取一个建造器对象
+    public static EventBusBuilder builder() {
+        return new EventBusBuilder();
+    }
+
+    //清理本EventBus对象中的缓存数据
+    public static void clearCaches() {
+    	//清理订阅过滤对象与过滤方法的缓存数据
+        SubscriberMethodFinder.clearCaches();
+        //
+        eventTypesCache.clear();
+    }
 
     /**
      * Registers the given subscriber to receive events. Subscribers must call {@link #unregister(Object)} once they
@@ -149,15 +143,20 @@ public class EventBus {
 
     //真正进行订阅者注册的处理函数   参数一  订阅者    参数二  是否是sticky事件  参数三  优先级
     private synchronized void register(Object subscriber, boolean sticky, int priority) {
+    	//根据订阅者的类来获取其上设置的所有订阅方法---------->内部使用了一些提供效率的优化机制
         List<SubscriberMethod> subscriberMethods = subscriberMethodFinder.findSubscriberMethods(subscriber.getClass());
+        //循环所有的订阅方法
         for (SubscriberMethod subscriberMethod : subscriberMethods) {
+        	//将订阅方法
             subscribe(subscriber, subscriberMethod, sticky, priority);
         }
     }
 
     // Must be called in synchronized block
     private void subscribe(Object subscriber, SubscriberMethod subscriberMethod, boolean sticky, int priority) {
+    	//获取订阅方法参数的类型
         Class<?> eventType = subscriberMethod.eventType;
+        //
         CopyOnWriteArrayList<Subscription> subscriptions = subscriptionsByEventType.get(eventType);
         Subscription newSubscription = new Subscription(subscriber, subscriberMethod, priority);
         if (subscriptions == null) {
@@ -179,12 +178,16 @@ public class EventBus {
                 break;
             }
         }
-
+        //根据订阅对象获取其对应的订阅方法集合
         List<Class<?>> subscribedEvents = typesBySubscriber.get(subscriber);
+        //判断是否创建此订阅方法集合
         if (subscribedEvents == null) {
+        	//创建存储订阅方法的集合
             subscribedEvents = new ArrayList<Class<?>>();
+            //将订阅对象和创建的订阅方法集合存储到Map集合中
             typesBySubscriber.put(subscriber, subscribedEvents);
         }
+        //将订阅方法中的事件类型放置到订阅集合中
         subscribedEvents.add(eventType);
 
         if (sticky) {
@@ -216,6 +219,7 @@ public class EventBus {
         }
     }
 
+    //用于检测是否注册了给定的订阅对象
     public synchronized boolean isRegistered(Object subscriber) {
         return typesBySubscriber.containsKey(subscriber);
     }

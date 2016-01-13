@@ -1,18 +1,3 @@
-/*
- * Copyright (C) 2014 Markus Junginger, greenrobot (http://greenrobot.de)
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package de.greenrobot.event;
 
 import java.util.ArrayList;
@@ -21,10 +6,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Creates EventBus instances with custom parameters and also allows to install a custom default EventBus instance.
- * Create a new builder using {@link EventBus#builder()}.
+ * 建造EventBus对象的建造器类
  */
 public class EventBusBuilder {
+	
+	//建造器中默认的线程池对象
     private final static ExecutorService DEFAULT_EXECUTOR_SERVICE = Executors.newCachedThreadPool();
 
     boolean logSubscriberExceptions = true;
@@ -34,9 +20,11 @@ public class EventBusBuilder {
     boolean throwSubscriberException;
     boolean eventInheritance = true;
     ExecutorService executorService = DEFAULT_EXECUTOR_SERVICE;
+    //定义集合对象,用于存储需要过滤检测的类
     List<Class<?>> skipMethodVerificationForClasses;
 
     EventBusBuilder() {
+    	
     }
 
     /** Default: true */
@@ -98,15 +86,14 @@ public class EventBusBuilder {
         return this;
     }
 
-    /**
-     * Method name verification is done for methods starting with onEvent to avoid typos; using this method you can
-     * exclude subscriber classes from this check. Also disables checks for method modifiers (public, not static nor
-     * abstract).
-     */
+    //在建造器对象中设置订阅对象内部的那些类可以跳过订阅方法检测处理
     public EventBusBuilder skipMethodVerificationFor(Class<?> clazz) {
+    	//首先检测存储集合对象是否存在
         if (skipMethodVerificationForClasses == null) {
+        	//创建集合对象用于存储对象的类
             skipMethodVerificationForClasses = new ArrayList<Class<?>>();
         }
+        //将需要跳过检测的类放置到集合中
         skipMethodVerificationForClasses.add(clazz);
         return this;
     }
@@ -127,8 +114,9 @@ public class EventBusBuilder {
         }
     }
 
-    /** Builds an EventBus based on the current configuration. */
+    //根据当前的建造器对象来创建EventBus对象
     public EventBus build() {
+    	//根据建造器对象创建EventBus对象
         return new EventBus(this);
     }
 

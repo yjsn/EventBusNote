@@ -1,27 +1,19 @@
-/*
- * Copyright (C) 2012 Markus Junginger, greenrobot (http://greenrobot.de)
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package de.greenrobot.event;
 
 import java.lang.reflect.Method;
 
+/**
+ * 封装了订阅者中当个订阅方法的相关信息
+ */
 final class SubscriberMethod {
+	
+	//用于存储订阅者中的订阅方法
     final Method method;
+    //用于存储对应的模式
     final ThreadMode threadMode;
+    //用于存储订阅方法中参数的类型
     final Class<?> eventType;
-    /** Used for efficient comparison */
+    //用于与订阅方法想关联的标示------>key值,主要用于两个订阅方法的比较处理
     String methodString;
 
     SubscriberMethod(Method method, ThreadMode threadMode, Class<?> eventType) {
@@ -30,26 +22,33 @@ final class SubscriberMethod {
         this.eventType = eventType;
     }
 
+    //重写其对应的equals方法,辨别两个订阅方法是否相同
     @Override
     public boolean equals(Object other) {
         if (other instanceof SubscriberMethod) {
+        	//检测并创建本检测订阅方法的key值
             checkMethodString();
+            //进行类型强制转化
             SubscriberMethod otherSubscriberMethod = (SubscriberMethod)other;
+            //检测并创建外来订阅方法的key值
             otherSubscriberMethod.checkMethodString();
-            // Don't use method.equals because of http://code.google.com/p/android/issues/detail?id=7811#c6
+            //比较两个字符串是否相同
             return methodString.equals(otherSubscriberMethod.methodString);
         } else {
             return false;
         }
     }
 
+    //检测并进行字符串对象的获取
     private synchronized void checkMethodString() {
         if (methodString == null) {
-            // Method.toString has more overhead, just take relevant parts of the method
+        	//创建字符串拼接对象
             StringBuilder builder = new StringBuilder(64);
+            //进行字符串的拼接处理
             builder.append(method.getDeclaringClass().getName());
             builder.append('#').append(method.getName());
             builder.append('(').append(eventType.getName());
+            //获取拼接后的字符串对象
             methodString = builder.toString();
         }
     }

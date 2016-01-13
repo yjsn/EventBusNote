@@ -1,10 +1,7 @@
 package de.greenrobot.event;
 
 /**
- * An {@link RuntimeException} thrown in cases something went wrong inside EventBus.
- * 
- * @author Markus
- * 
+ * 在EventBus中的异常错误处理类------>用于处理运行时异常
  */
 public class EventBusException extends RuntimeException {
 

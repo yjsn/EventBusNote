@@ -128,15 +128,13 @@ public class ErrorDialogManager {
             android.app.FragmentManager fm = getFragmentManager();
             fm.executePendingTransactions();
 
-            android.app.DialogFragment existingFragment = (android.app.DialogFragment) fm
-                    .findFragmentByTag(TAG_ERROR_DIALOG);
+            android.app.DialogFragment existingFragment = (android.app.DialogFragment) fm.findFragmentByTag(TAG_ERROR_DIALOG);
             if (existingFragment != null) {
                 // Just show the latest error
                 existingFragment.dismiss();
             }
 
-            android.app.DialogFragment errorFragment = (android.app.DialogFragment) factory.prepareErrorFragment(event,
-                    finishAfterDialog, argumentsForErrorDialog);
+            android.app.DialogFragment errorFragment = (android.app.DialogFragment) factory.prepareErrorFragment(event, finishAfterDialog, argumentsForErrorDialog);
             if (errorFragment != null) {
                 errorFragment.show(fm, TAG_ERROR_DIALOG);
             }
@@ -144,8 +142,7 @@ public class ErrorDialogManager {
 
         public static void attachTo(Activity activity, Object executionScope, boolean finishAfterDialog, Bundle argumentsForErrorDialog) {
             android.app.FragmentManager fm = activity.getFragmentManager();
-            HoneycombManagerFragment fragment = (HoneycombManagerFragment) fm
-                    .findFragmentByTag(TAG_ERROR_DIALOG_MANAGER);
+            HoneycombManagerFragment fragment = (HoneycombManagerFragment) fm.findFragmentByTag(TAG_ERROR_DIALOG_MANAGER);
             if (fragment == null) {
                 fragment = new HoneycombManagerFragment();
                 fm.beginTransaction().add(fragment, TAG_ERROR_DIALOG_MANAGER).commit();
@@ -206,14 +203,12 @@ public class ErrorDialogManager {
             if (name.equals("android.support.v4.app.FragmentActivity")) {
                 isSupport = true;
                 break;
-            } else if (name.startsWith("com.actionbarsherlock.app")
-                    && (name.endsWith(".SherlockActivity") || name.endsWith(".SherlockListActivity") || name
+            } else if (name.startsWith("com.actionbarsherlock.app") && (name.endsWith(".SherlockActivity") || name.endsWith(".SherlockListActivity") || name
                             .endsWith(".SherlockPreferenceActivity"))) {
                 throw new RuntimeException("Please use SherlockFragmentActivity. Illegal activity: " + name);
             } else if (name.equals("android.app.Activity")) {
                 if (Build.VERSION.SDK_INT < Build.VERSION_CODES.HONEYCOMB) {
-                    throw new RuntimeException(
-                            "Illegal activity without fragment support. Either use Android 3.0+ or android.support.v4.app.FragmentActivity.");
+                    throw new RuntimeException("Illegal activity without fragment support. Either use Android 3.0+ or android.support.v4.app.FragmentActivity.");
                 }
                 break;
             }

@@ -43,8 +43,7 @@ public abstract class ErrorDialogFragmentFactory<T> {
         if (!bundle.containsKey(ErrorDialogManager.KEY_FINISH_AFTER_DIALOG)) {
             bundle.putBoolean(ErrorDialogManager.KEY_FINISH_AFTER_DIALOG, finishAfterDialog);
         }
-        if (!bundle.containsKey(ErrorDialogManager.KEY_EVENT_TYPE_ON_CLOSE)
-                && config.defaultEventTypeOnDialogClosed != null) {
+        if (!bundle.containsKey(ErrorDialogManager.KEY_EVENT_TYPE_ON_CLOSE) && config.defaultEventTypeOnDialogClosed != null) {
             bundle.putSerializable(ErrorDialogManager.KEY_EVENT_TYPE_ON_CLOSE, config.defaultEventTypeOnDialogClosed);
         }
         if (!bundle.containsKey(ErrorDialogManager.KEY_ICON_ID) && config.defaultDialogIconId != 0) {
