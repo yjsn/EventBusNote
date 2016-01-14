@@ -215,15 +215,42 @@ public class EventBus {
         return typesBySubscriber.containsKey(subscriber);
     }
 
-    /** Only updates subscriptionsByEventType, not typesBySubscriber! Caller must update typesBySubscriber. */
+    //取消对给定订阅对象的订阅
+    public synchronized void unregister(Object subscriber) {
+    	//根据订阅对象获取其对应的订阅类型集合
+        List<Class<?>> subscribedTypes = typesBySubscriber.get(subscriber);
+        //判断是否根据订阅对象获取到对应的订阅类型集合
+        if (subscribedTypes != null) {
+        	//循环遍历订阅对象中的所有订阅方法
+            for (Class<?> eventType : subscribedTypes) {
+            	//取消订阅对象中订阅的类型
+                unsubscribeByEventType(subscriber, eventType);
+            }
+            //最后在订阅集合中移除其对应的订阅对象
+            typesBySubscriber.remove(subscriber);
+        } else {
+        	//提示给定的订阅对象没有在订阅集合中
+            Log.w(TAG, "Subscriber to unregister was not registered before: " + subscriber.getClass());
+        }
+    }
+    
+    //取消对订阅对象中一个订阅类型的处理
     private void unsubscribeByEventType(Object subscriber, Class<?> eventType) {
+    	//根据订阅类型获取订阅信息集合
         List<Subscription> subscriptions = subscriptionsByEventType.get(eventType);
+        //判断获取的集合是否存在
         if (subscriptions != null) {
+        	//获取订阅信息集合的大小
             int size = subscriptions.size();
+            //循环遍历集合,找到订阅对象对应的订阅信息,并进行移除
             for (int i = 0; i < size; i++) {
+            	//获取本条订阅信息
                 Subscription subscription = subscriptions.get(i);
+                //判断订阅对象是否是给定的订阅对象
                 if (subscription.subscriber == subscriber) {
+                	//设置活跃标志位为false--------------------------------------------->目的有待研究？？？？？？？？？？？？？？？？？？？？？？？？？
                     subscription.active = false;
+                    //在集合中移除此条订阅信息
                     subscriptions.remove(i);
                     i--;
                     size--;
@@ -232,21 +259,9 @@ public class EventBus {
         }
     }
 
-    /** Unregisters the given subscriber from all event classes. */
-    public synchronized void unregister(Object subscriber) {
-        List<Class<?>> subscribedTypes = typesBySubscriber.get(subscriber);
-        if (subscribedTypes != null) {
-            for (Class<?> eventType : subscribedTypes) {
-                unsubscribeByEventType(subscriber, eventType);
-            }
-            typesBySubscriber.remove(subscriber);
-        } else {
-            Log.w(TAG, "Subscriber to unregister was not registered before: " + subscriber.getClass());
-        }
-    }
-
-    /** Posts the given event to the event bus. */
+    //发送一个给定的事件类型给EventBus系统进行处理
     public void post(Object event) {
+    	//
         PostingThreadState postingState = currentPostingThreadState.get();
         List<Object> eventQueue = postingState.eventQueue;
         eventQueue.add(event);
