@@ -18,11 +18,11 @@ public class EventBus {
     public static String TAG = "Event";
     //框架内部默认的EventBus对象
     static volatile EventBus defaultInstance;
-    //框架内部默认使用的建造器对象
+    //框架内部默认使用的建造器对象--------注意这个是类共享的
     private static final EventBusBuilder DEFAULT_BUILDER = new EventBusBuilder();
     
     private static final Map<Class<?>, List<Class<?>>> eventTypesCache = new HashMap<Class<?>, List<Class<?>>>();
-
+    //本集合用于存储  订阅方法中的参数类型   和这个参数类型对应的订阅者和订阅方法的订阅信息集合        即一个参数类型可以对应多个不同的订阅对象的同一个订阅方法
     private final Map<Class<?>, CopyOnWriteArrayList<Subscription>> subscriptionsByEventType;
     //用于存储本EventBus对象中订阅的对象和对应的方法
     private final Map<Object, List<Class<?>>> typesBySubscriber;
@@ -99,49 +99,27 @@ public class EventBus {
         eventTypesCache.clear();
     }
 
-    /**
-     * Registers the given subscriber to receive events. Subscribers must call {@link #unregister(Object)} once they
-     * are no longer interested in receiving events.
-     * <p/>
-     * Subscribers have event handling methods that are identified by their name, typically called "onEvent". Event
-     * handling methods must have exactly one parameter, the event. If the event handling method is to be called in a
-     * specific thread, a modifier is appended to the method name. Valid modifiers match one of the {@link ThreadMode}
-     * enums. For example, if a method is to be called in the UI/main thread by EventBus, it would be called
-     * "onEventMainThread".
-     */
     //对订阅者的注册   使用默认的优先级别
     public void register(Object subscriber) {
         register(subscriber, false, 0);
     }
 
-    /**
-     * Like {@link #register(Object)} with an additional subscriber priority to influence the order of event delivery.
-     * Within the same delivery thread ({@link ThreadMode}), higher priority subscribers will receive events before
-     * others with a lower priority. The default priority is 0. Note: the priority does *NOT* affect the order of
-     * delivery among subscribers with different {@link ThreadMode}s!
-     */
     //对订阅者的注册   可以设置订阅者的优先级别
     public void register(Object subscriber, int priority) {
         register(subscriber, false, priority);
     }
 
-    /**
-     * Like {@link #register(Object)}, but also triggers delivery of the most recent sticky event (posted with
-     * {@link #postSticky(Object)}) to the given subscriber.
-     */
+    //对订阅者的注册   是sticky类型的事件    使用默认的优先级别
     public void registerSticky(Object subscriber) {
         register(subscriber, true, 0);
     }
 
-    /**
-     * Like {@link #register(Object, int)}, but also triggers delivery of the most recent sticky event (posted with
-     * {@link #postSticky(Object)}) to the given subscriber.
-     */
+    //对订阅者的注册   是sticky类型的事件    可以自己设置其优先级别
     public void registerSticky(Object subscriber, int priority) {
         register(subscriber, true, priority);
     }
 
-    //真正进行订阅者注册的处理函数   参数一  订阅者    参数二  是否是sticky事件  参数三  优先级
+    //真正进行订阅者注册的处理函数   参数一  订阅者    参数二  是否是sticky事件  参数三  优先级------------------->注册订阅者必须走的注册函数
     private synchronized void register(Object subscriber, boolean sticky, int priority) {
     	//根据订阅者的类来获取其上设置的所有订阅方法---------->内部使用了一些提供效率的优化机制
         List<SubscriberMethod> subscriberMethods = subscriberMethodFinder.findSubscriberMethods(subscriber.getClass());
@@ -153,27 +131,37 @@ public class EventBus {
     }
 
     // Must be called in synchronized block
+    //
     private void subscribe(Object subscriber, SubscriberMethod subscriberMethod, boolean sticky, int priority) {
     	//获取订阅方法参数的类型
         Class<?> eventType = subscriberMethod.eventType;
-        //
+        //获取在订阅方法中参数类型对应的所有订阅信息
         CopyOnWriteArrayList<Subscription> subscriptions = subscriptionsByEventType.get(eventType);
+        //根据订阅对象  订阅方法   订阅权限 创建一个订阅信息
         Subscription newSubscription = new Subscription(subscriber, subscriberMethod, priority);
+        //判断原先是否存储了本参数对应的订阅信息
         if (subscriptions == null) {
+        	//没有,创建一个集合用于存储本类型对应的订阅信息
             subscriptions = new CopyOnWriteArrayList<Subscription>();
+            //将其放置到map集合中    键值为参数类型  值为参数对应的订阅信息  
             subscriptionsByEventType.put(eventType, subscriptions);
         } else {
+        	//判断订阅信息集合中是否包含了此次订阅的信息
             if (subscriptions.contains(newSubscription)) {
+            	//包含则抛出异常
                 throw new EventBusException("Subscriber " + subscriber.getClass() + " already registered to event " + eventType);
             }
         }
 
         // Starting with EventBus 2.2 we enforced methods to be public (might change with annotations again)
         // subscriberMethod.method.setAccessible(true);
-
+        //获取原先订阅信息集合中订阅信息的个数
         int size = subscriptions.size();
+        //下面是根据设置的权限找到一个合适的插入位置
         for (int i = 0; i <= size; i++) {
+        	//进行位置获取
             if (i == size || newSubscription.priority > subscriptions.get(i).priority) {
+            	//将新的订阅信息插入到集合中
                 subscriptions.add(i, newSubscription);
                 break;
             }
@@ -190,12 +178,15 @@ public class EventBus {
         //将订阅方法中的事件类型放置到订阅集合中
         subscribedEvents.add(eventType);
 
+        //判断是否是sticky事件类型的
         if (sticky) {
+        	//判断是否允许订阅方法中参数的继承关系
             if (eventInheritance) {
                 // Existing sticky events of all subclasses of eventType have to be considered.
                 // Note: Iterating over all events may be inefficient with lots of sticky events,
                 // thus data structure should be changed to allow a more efficient lookup
                 // (e.g. an additional map storing sub classes of super classes: Class -> List<Class>).
+            	//
                 Set<Map.Entry<Class<?>, Object>> entries = stickyEvents.entrySet();
                 for (Map.Entry<Class<?>, Object> entry : entries) {
                     Class<?> candidateEventType = entry.getKey();
