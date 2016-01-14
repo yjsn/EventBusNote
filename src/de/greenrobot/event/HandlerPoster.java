@@ -36,7 +36,7 @@ final class HandlerPoster extends Handler {
         }
     }
 
-    //
+    //在主线程中进行触发消息的处理
     @Override
     public void handleMessage(Message msg) {
         boolean rescheduled = false;
@@ -44,7 +44,9 @@ final class HandlerPoster extends Handler {
         	//获取在主线程中处理消息的时间
             long started = SystemClock.uptimeMillis();
             while (true) {
+            	//在队列中获取一条需要触发的订阅方法
                 PendingPost pendingPost = queue.poll();
+                //判断是否能够获取需要触发的订阅消息
                 if (pendingPost == null) {
                     synchronized (this) {
                         // Check again, this time in synchronized
@@ -55,8 +57,11 @@ final class HandlerPoster extends Handler {
                         }
                     }
                 }
+                //使用订阅对象来触发此次的订阅方法
                 eventBus.invokeSubscriber(pendingPost);
+                //获取执行触发消息需要的时间
                 long timeInMethod = SystemClock.uptimeMillis() - started;
+                //判断是否响应消息是否大于预设的响应最大值
                 if (timeInMethod >= maxMillisInsideHandleMessage) {
                     if (!sendMessage(obtainMessage())) {
                         throw new EventBusException("Could not send handler message");
