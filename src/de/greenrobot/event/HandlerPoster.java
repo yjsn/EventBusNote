@@ -5,6 +5,9 @@ import android.os.Looper;
 import android.os.Message;
 import android.os.SystemClock;
 
+/**
+ * 本类是用于将需要触发的订阅对象中的订阅方法处理由子线程中发送到主线程来进行处理
+ */
 final class HandlerPoster extends Handler {
 
     private final PendingPostQueue queue;
@@ -19,6 +22,7 @@ final class HandlerPoster extends Handler {
         queue = new PendingPostQueue();
     }
 
+    //
     void enqueue(Subscription subscription, Object event) {
         PendingPost pendingPost = PendingPost.obtainPendingPost(subscription, event);
         synchronized (this) {
@@ -32,10 +36,12 @@ final class HandlerPoster extends Handler {
         }
     }
 
+    //
     @Override
     public void handleMessage(Message msg) {
         boolean rescheduled = false;
         try {
+        	//获取在主线程中处理消息的时间
             long started = SystemClock.uptimeMillis();
             while (true) {
                 PendingPost pendingPost = queue.poll();

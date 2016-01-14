@@ -20,7 +20,7 @@ public class EventBus {
     static volatile EventBus defaultInstance;
     //框架内部默认使用的建造器对象--------注意这个是类共享的
     private static final EventBusBuilder DEFAULT_BUILDER = new EventBusBuilder();
-    
+    //本集合用于缓存订阅类型和此类型对应的父类和接口的集合---------------------------------------------------------------------------------->关键数据结构
     private static final Map<Class<?>, List<Class<?>>> eventTypesCache = new HashMap<Class<?>, List<Class<?>>>();
     //本集合用于存储  订阅方法中的参数类型   和这个参数类型对应的订阅者和订阅方法的订阅信息集合        即一个参数类型可以对应多个不同的订阅对象的同一个订阅方法
     private final Map<Class<?>, CopyOnWriteArrayList<Subscription>> subscriptionsByEventType;
@@ -28,7 +28,10 @@ public class EventBus {
     private final Map<Object, List<Class<?>>> typesBySubscriber;
     private final Map<Class<?>, Object> stickyEvents;
 
+    //创建本地线程共享变量
     private final ThreadLocal<PostingThreadState> currentPostingThreadState = new ThreadLocal<PostingThreadState>() {
+    	
+    	//重写该方法用于初始化对象,即进行set方法时不会出现错误
         @Override
         protected PostingThreadState initialValue() {
             return new PostingThreadState();
@@ -261,25 +264,176 @@ public class EventBus {
 
     //发送一个给定的事件类型给EventBus系统进行处理
     public void post(Object event) {
-    	//
+    	//获取当前线程存储的PostingThreadState参数状态
         PostingThreadState postingState = currentPostingThreadState.get();
+        //获取当前线程需要发送的订阅事件
         List<Object> eventQueue = postingState.eventQueue;
+        //将当前的订阅事件放置到发送事件集合中----------------------------------------->这个地方注意是一个线程中,所以不会出现添加和删除元素的冲突
         eventQueue.add(event);
-
+        //判断当前线程是否处于发送订阅消息的状态
         if (!postingState.isPosting) {
+        	//获取当前线程是否是主线程
             postingState.isMainThread = Looper.getMainLooper() == Looper.myLooper();
+            //设置当前状态为正在发送消息的状态
             postingState.isPosting = true;
+            //判断当前线程是否取消了发送订阅消息的处理
             if (postingState.canceled) {
                 throw new EventBusException("Internal error. Abort state was not reset");
             }
             try {
+            	//进行循环处理,将待发送的消息发送出去
                 while (!eventQueue.isEmpty()) {
+                	//进行单个订阅消息的处理
                     postSingleEvent(eventQueue.remove(0), postingState);
                 }
             } finally {
+            	//最后对状态进行恢复出来
                 postingState.isPosting = false;
                 postingState.isMainThread = false;
             }
+        }
+    }
+    
+    //进行订阅消息的响应处理
+    private void postSingleEvent(Object event, PostingThreadState postingState) throws Error {
+    	//获取发送订阅的参数类型对应的类名
+        Class<?> eventClass = event.getClass();
+        boolean subscriptionFound = false;
+        //判断是否允许父类型的参数类型也可以响应这个消息的处理
+        if (eventInheritance) {
+        	//检测本类型对应的其父类型集合
+            List<Class<?>> eventTypes = lookupAllEventTypes(eventClass);
+            //获取集合中的元素个数
+            int countTypes = eventTypes.size();
+            //循环处理,进行消息的发送
+            for (int h = 0; h < countTypes; h++) {
+            	//首先获取一个类型-------------------------------------->注意一开始是提交参数的类型
+                Class<?> clazz = eventTypes.get(h);
+                //
+                subscriptionFound |= postSingleEventForEventType(event, postingState, clazz);
+            }
+        } else {
+        	//如果进行严格的类型区分,那么只发生此类型的处理消息
+            subscriptionFound = postSingleEventForEventType(event, postingState, eventClass);
+        }
+        //判断是否找到对应的处理方法,并启动处理消息
+        if (!subscriptionFound) {
+            if (logNoSubscriberMessages) {
+                Log.d(TAG, "No subscribers registered for event " + eventClass);
+            }
+            if (sendNoSubscriberEvent && eventClass != NoSubscriberEvent.class && eventClass != SubscriberExceptionEvent.class) {
+                post(new NoSubscriberEvent(this, event));
+            }
+        }
+    }
+    
+    //在类型集合中用于检测给定类型的父类型
+    private List<Class<?>> lookupAllEventTypes(Class<?> eventClass) {
+        synchronized (eventTypesCache) {
+        	//根据给定的参数类型的类名获取
+            List<Class<?>> eventTypes = eventTypesCache.get(eventClass);
+            //判断是否已经存储了此类型对应的父类集合
+            if (eventTypes == null) {
+            	//没有存储,首先创建一个用于存储的集合
+                eventTypes = new ArrayList<Class<?>>();
+                //获取当前类型的名称
+                Class<?> clazz = eventClass;
+                //进行循环处理,添加本类与其对应的父类对象
+                while (clazz != null) {
+                	//添加获取到的类------------------------------------------------->这个地方是否可以进行优化处理,使得能够直接对需要的父类和子类进行存储处理
+                    eventTypes.add(clazz);
+                    //添加类对应的接口
+                    addInterfaces(eventTypes, clazz.getInterfaces());
+                    //获取其父类
+                    clazz = clazz.getSuperclass();
+                }
+                //将类型和类型对应的父类和接口添加到集合中,进行缓存处理
+                eventTypesCache.put(eventClass, eventTypes);
+            }
+            //最终返回本类型对象的父类和接口的集合
+            return eventTypes;
+        }
+    }
+    
+    //添加接口类型到集合中------------------>注意点接口的接口
+    static void addInterfaces(List<Class<?>> eventTypes, Class<?>[] interfaces) {
+    	//循环处理添加接口类型到集合中
+        for (Class<?> interfaceClass : interfaces) {
+        	//判断在集合中是否包含了此接口类
+            if (!eventTypes.contains(interfaceClass)) {
+            	//添加接口到集合中
+                eventTypes.add(interfaceClass);
+                //进行递归处理接口的接口
+                addInterfaces(eventTypes, interfaceClass.getInterfaces());
+            }
+        }
+    }
+    
+    //
+    private boolean postSingleEventForEventType(Object event, PostingThreadState postingState, Class<?> eventClass) {
+        CopyOnWriteArrayList<Subscription> subscriptions;
+        synchronized (this) {
+        	//首先根据类型获取订阅信息集合
+            subscriptions = subscriptionsByEventType.get(eventClass);
+        }
+        //判断是否有订阅信息集合存在
+        if (subscriptions != null && !subscriptions.isEmpty()) {
+        	//进行循环处理,获取当个订阅对象,并进行消息的响应处理
+            for (Subscription subscription : subscriptions) {
+                postingState.event = event;
+                postingState.subscription = subscription;
+                boolean aborted = false;
+                try {
+                    postToSubscription(subscription, event, postingState.isMainThread);
+                    aborted = postingState.canceled;
+                } finally {
+                	//
+                    postingState.event = null;
+                    postingState.subscription = null;
+                    postingState.canceled = false;
+                }
+                if (aborted) {
+                    break;
+                }
+            }
+            return true;
+        }
+        //没有找到对应的订阅对象集合,返回没有找到订阅处理
+        return false;
+    }
+    
+    //
+    private void postToSubscription(Subscription subscription, Object event, boolean isMainThread) {
+        switch (subscription.subscriberMethod.threadMode) {
+            //需要当前线程进行消息处理
+            case PostThread:
+                invokeSubscriber(subscription, event);
+                break;
+            //需要主线程进行消息处理
+            case MainThread:
+            	//判断当前线程是否是主线程
+                if (isMainThread) {
+                	//是主线程,利用反射机制来将方法触发,进行响应
+                    invokeSubscriber(subscription, event);
+                } else {
+                	//当前不是主线程,那么需要将这个带处理的消息发送到主线程队列中,
+                    mainThreadPoster.enqueue(subscription, event);
+                }
+                break;
+            //需要后台线程进行消息处理
+            case BackgroundThread:
+                if (isMainThread) {
+                    backgroundPoster.enqueue(subscription, event);
+                } else {
+                    invokeSubscriber(subscription, event);
+                }
+                break;
+            //需要独立的子线程进行消息处理
+            case Async:
+                asyncPoster.enqueue(subscription, event);
+                break;
+            default:
+                throw new IllegalStateException("Unknown thread mode: " + subscription.subscriberMethod.threadMode);
         }
     }
 
@@ -385,111 +539,6 @@ public class EventBus {
         return false;
     }
 
-    private void postSingleEvent(Object event, PostingThreadState postingState) throws Error {
-        Class<?> eventClass = event.getClass();
-        boolean subscriptionFound = false;
-        if (eventInheritance) {
-            List<Class<?>> eventTypes = lookupAllEventTypes(eventClass);
-            int countTypes = eventTypes.size();
-            for (int h = 0; h < countTypes; h++) {
-                Class<?> clazz = eventTypes.get(h);
-                subscriptionFound |= postSingleEventForEventType(event, postingState, clazz);
-            }
-        } else {
-            subscriptionFound = postSingleEventForEventType(event, postingState, eventClass);
-        }
-        if (!subscriptionFound) {
-            if (logNoSubscriberMessages) {
-                Log.d(TAG, "No subscribers registered for event " + eventClass);
-            }
-            if (sendNoSubscriberEvent && eventClass != NoSubscriberEvent.class && eventClass != SubscriberExceptionEvent.class) {
-                post(new NoSubscriberEvent(this, event));
-            }
-        }
-    }
-
-    private boolean postSingleEventForEventType(Object event, PostingThreadState postingState, Class<?> eventClass) {
-        CopyOnWriteArrayList<Subscription> subscriptions;
-        synchronized (this) {
-            subscriptions = subscriptionsByEventType.get(eventClass);
-        }
-        if (subscriptions != null && !subscriptions.isEmpty()) {
-            for (Subscription subscription : subscriptions) {
-                postingState.event = event;
-                postingState.subscription = subscription;
-                boolean aborted = false;
-                try {
-                    postToSubscription(subscription, event, postingState.isMainThread);
-                    aborted = postingState.canceled;
-                } finally {
-                    postingState.event = null;
-                    postingState.subscription = null;
-                    postingState.canceled = false;
-                }
-                if (aborted) {
-                    break;
-                }
-            }
-            return true;
-        }
-        return false;
-    }
-
-    private void postToSubscription(Subscription subscription, Object event, boolean isMainThread) {
-        switch (subscription.subscriberMethod.threadMode) {
-            case PostThread:
-                invokeSubscriber(subscription, event);
-                break;
-            case MainThread:
-                if (isMainThread) {
-                    invokeSubscriber(subscription, event);
-                } else {
-                    mainThreadPoster.enqueue(subscription, event);
-                }
-                break;
-            case BackgroundThread:
-                if (isMainThread) {
-                    backgroundPoster.enqueue(subscription, event);
-                } else {
-                    invokeSubscriber(subscription, event);
-                }
-                break;
-            case Async:
-                asyncPoster.enqueue(subscription, event);
-                break;
-            default:
-                throw new IllegalStateException("Unknown thread mode: " + subscription.subscriberMethod.threadMode);
-        }
-    }
-
-    /** Looks up all Class objects including super classes and interfaces. Should also work for interfaces. */
-    private List<Class<?>> lookupAllEventTypes(Class<?> eventClass) {
-        synchronized (eventTypesCache) {
-            List<Class<?>> eventTypes = eventTypesCache.get(eventClass);
-            if (eventTypes == null) {
-                eventTypes = new ArrayList<Class<?>>();
-                Class<?> clazz = eventClass;
-                while (clazz != null) {
-                    eventTypes.add(clazz);
-                    addInterfaces(eventTypes, clazz.getInterfaces());
-                    clazz = clazz.getSuperclass();
-                }
-                eventTypesCache.put(eventClass, eventTypes);
-            }
-            return eventTypes;
-        }
-    }
-
-    /** Recurses through super interfaces. */
-    static void addInterfaces(List<Class<?>> eventTypes, Class<?>[] interfaces) {
-        for (Class<?> interfaceClass : interfaces) {
-            if (!eventTypes.contains(interfaceClass)) {
-                eventTypes.add(interfaceClass);
-                addInterfaces(eventTypes, interfaceClass.getInterfaces());
-            }
-        }
-    }
-
     /**
      * Invokes the subscriber if the subscriptions is still active. Skipping subscriptions prevents race conditions
      * between {@link #unregister(Object)} and event delivery. Otherwise the event might be delivered after the
@@ -505,8 +554,10 @@ public class EventBus {
         }
     }
 
+    //通过反射的方法,将订阅对象的订阅方法运行起来,即实现消息的响应处理
     void invokeSubscriber(Subscription subscription, Object event) {
         try {
+        	//获取方法,利用反射进行触发
             subscription.subscriberMethod.method.invoke(subscription.subscriber, event);
         } catch (InvocationTargetException e) {
             handleSubscriberException(subscription, event, e.getCause());
@@ -539,11 +590,18 @@ public class EventBus {
 
     /** For ThreadLocal, much faster to set (and get multiple values). */
     final static class PostingThreadState {
+    	
+    	//本集合用于暂时存储需要发送的订阅处理事件
         final List<Object> eventQueue = new ArrayList<Object>();
+        //用于标示当前是否处于发送订阅事件的状态
         boolean isPosting;
+        //用于标示当前线程是否是主线程
         boolean isMainThread;
+        //
         Subscription subscription;
+        //
         Object event;
+        //
         boolean canceled;
     }
 
