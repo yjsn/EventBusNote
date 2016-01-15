@@ -19,6 +19,7 @@ public class EventBusBuilder {
     boolean sendNoSubscriberEvent = true;
     boolean throwSubscriberException;
     boolean eventInheritance = true;
+    //设置默认的线程池对象
     ExecutorService executorService = DEFAULT_EXECUTOR_SERVICE;
     //定义集合对象,用于存储需要过滤检测的类
     List<Class<?>> skipMethodVerificationForClasses;
@@ -76,11 +77,7 @@ public class EventBusBuilder {
         return this;
     }
 
-
-    /**
-     * Provide a custom thread pool to EventBus used for async and background event delivery. This is an advanced
-     * setting to that can break things: ensure the given ExecutorService won't get stuck to avoid undefined behavior.
-     */
+    //根据自己的需要来设置此线程池对象
     public EventBusBuilder executorService(ExecutorService executorService) {
         this.executorService = executorService;
         return this;

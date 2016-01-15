@@ -1,11 +1,5 @@
 package de.greenrobot.event;
 
-
-/**
- * Posts events in background.
- * 
- * @author Markus
- */
 class AsyncPoster implements Runnable {
 
     private final PendingPostQueue queue;

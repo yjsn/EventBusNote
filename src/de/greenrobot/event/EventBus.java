@@ -38,10 +38,15 @@ public class EventBus {
         }
     };
 
+    //用于向主线程中发送触发订阅方法的处理------>内部主要是handler来实现将需要触发的订阅发送到主线程来进行触发----->每个EventBus对象都会创建该对象
     private final HandlerPoster mainThreadPoster;
+    //
     private final BackgroundPoster backgroundPoster;
+    //
     private final AsyncPoster asyncPoster;
+    //用于过滤订阅对象的订阅方法
     private final SubscriberMethodFinder subscriberMethodFinder;
+    //用于存储线程池对象
     private final ExecutorService executorService;
 
     private final boolean throwSubscriberException;
@@ -49,6 +54,7 @@ public class EventBus {
     private final boolean logNoSubscriberMessages;
     private final boolean sendSubscriberExceptionEvent;
     private final boolean sendNoSubscriberEvent;
+    //用于标示是否允许使用类型的父类和接口类型
     private final boolean eventInheritance;
 
     //获取框架默认的EventBus对象------>内部使用默认的建造器对象来创建EventBus对象
@@ -75,6 +81,7 @@ public class EventBus {
         //初始化创建存储订阅对象的集合
         typesBySubscriber = new HashMap<Object, List<Class<?>>>();
         stickyEvents = new ConcurrentHashMap<Class<?>, Object>();
+        //创建用于向主线程发送消息,触发需要订阅消息的对象
         mainThreadPoster = new HandlerPoster(this, Looper.getMainLooper(), 10);
         backgroundPoster = new BackgroundPoster(this);
         asyncPoster = new AsyncPoster(this);
@@ -86,6 +93,7 @@ public class EventBus {
         sendNoSubscriberEvent = builder.sendNoSubscriberEvent;
         throwSubscriberException = builder.throwSubscriberException;
         eventInheritance = builder.eventInheritance;
+        //获取线程池对象
         executorService = builder.executorService;
     }
 
@@ -407,6 +415,7 @@ public class EventBus {
         switch (subscription.subscriberMethod.threadMode) {
             //需要当前线程进行消息处理
             case PostThread:
+            	//当前正处于发送订阅的线程中,可以直接出发订阅方法
                 invokeSubscriber(subscription, event);
                 break;
             //需要主线程进行消息处理
@@ -422,14 +431,18 @@ public class EventBus {
                 break;
             //需要后台线程进行消息处理
             case BackgroundThread:
+            	//判断当前是否是主线程
                 if (isMainThread) {
+                	//在主线程时,需要将需要触发的订阅方法添加到子线程队列中
                     backgroundPoster.enqueue(subscription, event);
                 } else {
+                	//在当前的子线程中进行订阅方法的触发
                     invokeSubscriber(subscription, event);
                 }
                 break;
             //需要独立的子线程进行消息处理
             case Async:
+            	//
                 asyncPoster.enqueue(subscription, event);
                 break;
             default:
@@ -605,6 +618,7 @@ public class EventBus {
         boolean canceled;
     }
 
+    //获取EventBus提供给进行发送到子线程中处理订阅方法是线程池对象
     ExecutorService getExecutorService() {
         return executorService;
     }
